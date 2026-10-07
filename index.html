@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <link rel="preload" as="image" href="assets/bg.jpg" />
-  <link rel="stylesheet" href="style.css?v=20261008d" />
+  <link rel="stylesheet" href="style.css?v=20261008e" />
 </head>
 <body>
 
@@ -248,6 +248,21 @@
             <h4 class="comms__head">Need a netrunner?</h4>
             <p>Got a gig, a CTF crew short one runner, or just wanna talk shop? Ping me on the Net, choom. I'll pick up.</p>
             <p>Every channel's encrypted. Crack one open and jack in.</p>
+
+            <!-- 8-bit SNAKE.EXE: plays itself; click + arrows / WASD / swipe to take over -->
+            <div class="arcade" tabindex="0" role="application" aria-label="SNAKE.EXE, an 8-bit snake game. Focus it and use the arrow keys or WASD to play.">
+              <div class="arcade__bar"><span>// SNAKE.EXE</span><span class="arcade__mode">AUTOPILOT</span></div>
+              <div class="arcade__screen">
+                <canvas class="arcade__cv" aria-hidden="true"></canvas>
+                <p class="arcade__toast" aria-live="polite"></p>
+              </div>
+              <div class="arcade__bar arcade__bar--foot">
+                <span>SHARDS <b class="arcade__score">000</b></span>
+                <span>HI <b class="arcade__hi">000</b></span>
+                <span class="arcade__help">CLICK + ARROWS TO PLAY</span>
+              </div>
+            </div>
+
             <p class="comms__hint">// HOVER TO DECRYPT · CLICK TO JACK IN</p>
           </div>
           <div class="comms__channels">
@@ -284,6 +299,46 @@
                 <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
               </span>
               <span class="chan__handle" aria-hidden="true">@n0caterate</span>
+              <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
+              <span class="chan__foot" aria-hidden="true">
+                <span class="chan__state">ENCRYPTED</span>
+                <span class="chan__go">JACK IN ▸</span>
+              </span>
+            </a>
+            <!-- Discord has no username-only profile link: clicking copies the handle -->
+            <button type="button" class="card chan" data-reveal data-handle="@nocaterate" data-copy="nocaterate" aria-label="Discord: @nocaterate. Copy handle">
+              <span class="chan__top" aria-hidden="true">
+                <span class="chan__id">CH.04</span>
+                <span class="chan__net">DISCORD</span>
+                <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="chan__handle" aria-hidden="true">@nocaterate</span>
+              <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
+              <span class="chan__foot" aria-hidden="true">
+                <span class="chan__state">ENCRYPTED</span>
+                <span class="chan__go">COPY HANDLE ▸</span>
+              </span>
+            </button>
+            <a class="card chan" data-reveal href="https://open.spotify.com/user/marjvk736" target="_blank" rel="noopener noreferrer" data-handle="Nocaterate" aria-label="Spotify: Nocaterate">
+              <span class="chan__top" aria-hidden="true">
+                <span class="chan__id">CH.05</span>
+                <span class="chan__net">SPOTIFY</span>
+                <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="chan__handle" aria-hidden="true">Nocaterate</span>
+              <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
+              <span class="chan__foot" aria-hidden="true">
+                <span class="chan__state">ENCRYPTED</span>
+                <span class="chan__go">JACK IN ▸</span>
+              </span>
+            </a>
+            <a class="card chan" data-reveal href="https://www.roblox.com/users/1723944734/profile" target="_blank" rel="noopener noreferrer" data-handle="Nocaterate" aria-label="Roblox: Nocaterate">
+              <span class="chan__top" aria-hidden="true">
+                <span class="chan__id">CH.06</span>
+                <span class="chan__net">ROBLOX</span>
+                <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="chan__handle" aria-hidden="true">Nocaterate</span>
               <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
               <span class="chan__foot" aria-hidden="true">
                 <span class="chan__state">ENCRYPTED</span>
@@ -386,6 +441,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
-  <script src="main.js?v=20261008d"></script>
+  <script src="main.js?v=20261008e"></script>
 </body>
 </html>

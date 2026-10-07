@@ -242,6 +242,7 @@
     initDust();
     initGigFiles();
     initComms();
+    initArcade();
     initBreach();
 
     // Built now (paused) so its start state is already applied before the reveal
@@ -993,6 +994,17 @@
      COMMS — encrypted channels: handles churn as glitch glyphs,
      decrypt on hover / focus (or when scrolled into view on touch)
      --------------------------------------------------------- */
+  // copy without the async Clipboard API (http pages, older browsers)
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;opacity:0;top:0";
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+
   function initComms() {
     const GLYPHS = "!<>-_\\/[]{}=+*^?#01ΞΔ¥▓▒░";
     const HEXES = ["1C", "55", "BD", "E9", "7A", "FF"];
@@ -1025,6 +1037,7 @@
         c.out.innerHTML = html;
       };
       c.setState = () => {
+        if (el.classList.contains("is-copied")) return; // keep "HANDLE COPIED" visible for a moment
         const open = c.d >= 1;
         el.classList.toggle("is-decrypted", open);
         c.state.textContent = open ? "LINK ESTABLISHED" : c.d > 0 ? "DECRYPTING..." : "ENCRYPTED";
@@ -1045,6 +1058,19 @@
         el.addEventListener("mouseleave", () => c.to(0));
       }
       el.addEventListener("focus", () => c.to(1));
+      if (el.dataset.copy) {
+        el.addEventListener("click", () => {
+          const done = () => {
+            el.classList.add("is-copied");
+            c.state.textContent = "HANDLE COPIED ✓";
+            clearTimeout(c.copyT);
+            c.copyT = setTimeout(() => { el.classList.remove("is-copied"); c.setState(); }, 2200);
+          };
+          const text = el.dataset.copy;
+          if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text) && done());
+          else if (fallbackCopy(text)) done();
+        });
+      }
       el.addEventListener("blur", () => c.to(0));
       return c;
     });
@@ -1323,6 +1349,250 @@
 
     generate();
     render();
+  }
+
+  /* ---------------------------------------------------------
+     SNAKE.EXE — 8-bit snake in the comms box. Plays itself
+     (pathfinding autopilot); arrows / WASD / swipe take over.
+     --------------------------------------------------------- */
+  function initArcade() {
+    const box = $(".arcade");
+    if (!box) return;
+    const screen = $(".arcade__screen", box);
+    const cv = $(".arcade__cv", box);
+    const ctx = cv.getContext("2d");
+    const modeEl = $(".arcade__mode", box);
+    const scoreEl = $(".arcade__score", box);
+    const hiEl = $(".arcade__hi", box);
+    const toast = $(".arcade__toast", box);
+    const touch = matchMedia("(hover: none)").matches;
+    if (touch) $(".arcade__help", box).textContent = "TAP + SWIPE TO PLAY";
+
+    const CELL = 12;                 // css px per 8-bit cell
+    const STEP = { auto: 85, manual: 115 };
+    const YELLOW = [252, 238, 10], PINK = [255, 42, 109];
+    const DIRS = { ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
+
+    let cols = 0, rows = 0, dpr = 1;
+    let snake = [], dir = [1, 0], queue = [], food = [0, 0];
+    let score = 0, hi = 0, alive = true, manual = false, lastInput = 0, eatFx = 0, visible = false, acc = 0;
+    try { hi = +localStorage.getItem("nc-snake-hi") || 0; } catch (e) { /* storage blocked: no high score */ }
+
+    const pad = (n) => String(n).padStart(3, "0");
+    const key = (x, y) => y * cols + x;
+    const onBoard = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows;
+
+    function say(text, ms = 1100) {
+      toast.textContent = text;
+      toast.classList.add("is-on");
+      clearTimeout(say.t);
+      say.t = setTimeout(() => toast.classList.remove("is-on"), ms);
+    }
+
+    function setManual(on) {
+      manual = on;
+      box.classList.toggle("is-playing", on);
+      modeEl.textContent = on ? "PLAYER: YOU" : "AUTOPILOT";
+      if (on) lastInput = performance.now();
+    }
+
+    function spawn() {
+      const taken = new Set(snake.map(([x, y]) => key(x, y)));
+      const free = [];
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (!taken.has(key(x, y))) free.push([x, y]);
+      food = free.length ? free[(Math.random() * free.length) | 0] : [0, 0];
+    }
+
+    function reset() {
+      const y = rows >> 1, x = Math.max(4, cols >> 2);
+      snake = [[x, y], [x - 1, y], [x - 2, y], [x - 3, y]];
+      dir = [1, 0]; queue = []; score = 0; alive = true;
+      scoreEl.textContent = pad(0);
+      spawn();
+    }
+
+    function resize() {
+      const r = screen.getBoundingClientRect();
+      const c = Math.max(8, Math.floor(r.width / CELL)), ro = Math.max(6, Math.floor(r.height / CELL));
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      if (c === cols && ro === rows) return;
+      cols = c; rows = ro;
+      cv.width = cols * CELL * dpr; cv.height = rows * CELL * dpr;
+      Object.assign(cv.style, {
+        width: cols * CELL + "px", height: rows * CELL + "px",
+        left: Math.round((r.width - cols * CELL) / 2) + "px", top: Math.round((r.height - rows * CELL) / 2) + "px",
+      });
+      reset();
+      draw(performance.now());
+    }
+
+    // --- autopilot: shortest path to the shard, else the move with the most room ---
+    function blocked() {
+      const b = new Set(snake.slice(0, -1).map(([x, y]) => key(x, y))); // the tail moves away
+      return b;
+    }
+    function room(sx, sy, b) {
+      const seen = new Set([key(sx, sy)]), stack = [[sx, sy]];
+      while (stack.length && seen.size < 400) {
+        const [x, y] = stack.pop();
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy, k = key(nx, ny);
+          if (onBoard(nx, ny) && !b.has(k) && !seen.has(k)) { seen.add(k); stack.push([nx, ny]); }
+        }
+      }
+      return seen.size;
+    }
+    function autopilot() {
+      const [hx, hy] = snake[0];
+      const b = blocked();
+      // BFS from the head to the shard
+      const prev = new Map([[key(hx, hy), null]]);
+      const q = [[hx, hy]];
+      while (q.length) {
+        const [x, y] = q.shift();
+        if (x === food[0] && y === food[1]) break;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy, k = key(nx, ny);
+          if (onBoard(nx, ny) && !b.has(k) && !prev.has(k)) { prev.set(k, key(x, y)); q.push([nx, ny]); }
+        }
+      }
+      const fk = key(food[0], food[1]);
+      if (prev.has(fk)) {
+        let k = fk;
+        while (prev.get(k) !== key(hx, hy)) k = prev.get(k);
+        const nx = k % cols, ny = (k / cols) | 0;
+        if (room(nx, ny, b) > snake.length) return [nx - hx, ny - hy];
+      }
+      // no safe route: survive by heading for the most open space
+      let best = dir, bestRoom = -1;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = hx + dx, ny = hy + dy;
+        if (!onBoard(nx, ny) || b.has(key(nx, ny))) continue;
+        const rm = room(nx, ny, b);
+        if (rm > bestRoom) { bestRoom = rm; best = [dx, dy]; }
+      }
+      return best;
+    }
+
+    function step() {
+      if (!alive) return;
+      if (manual) {
+        if (queue.length) dir = queue.shift();
+        if (performance.now() - lastInput > 9000) setManual(false); // walked away: autopilot again
+      } else {
+        dir = autopilot();
+      }
+      const [hx, hy] = snake[0];
+      const nx = hx + dir[0], ny = hy + dir[1];
+      const eating = nx === food[0] && ny === food[1];
+      const body = new Set((eating ? snake : snake.slice(0, -1)).map(([x, y]) => key(x, y)));
+      if (!onBoard(nx, ny) || body.has(key(nx, ny))) return die();
+      snake.unshift([nx, ny]);
+      if (eating) {
+        score++;
+        scoreEl.textContent = pad(score);
+        if (score > hi) { hi = score; hiEl.textContent = pad(hi); try { localStorage.setItem("nc-snake-hi", hi); } catch (e) { /* ignore */ } }
+        eatFx = 1;
+        spawn();
+      } else snake.pop();
+    }
+
+    function die() {
+      alive = false;
+      say(manual ? "FLATLINED" : "REBOOTING...");
+      if (manual) setManual(false);
+      setTimeout(() => { reset(); }, 1100);
+    }
+
+    const mix = (a, b, t) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",")})`;
+
+    function draw(now) {
+      const s = CELL * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#04060c";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      // faint dot grid
+      ctx.fillStyle = "rgba(0,240,255,.09)";
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) ctx.fillRect(x * s + s / 2 - dpr, y * s + s / 2 - dpr, dpr * 2, dpr * 2);
+      // data shard: pulsing pink pixel-diamond
+      const pulse = 0.65 + 0.35 * Math.sin(now / 180);
+      const fx = food[0] * s, fy = food[1] * s, u = s / 6;
+      ctx.fillStyle = `rgba(255,42,109,${pulse})`;
+      ctx.fillRect(fx + 2 * u, fy + u, 2 * u, 4 * u);
+      ctx.fillRect(fx + u, fy + 2 * u, 4 * u, 2 * u);
+      ctx.fillStyle = `rgba(255,220,235,${pulse})`;
+      ctx.fillRect(fx + 2.5 * u, fy + 2.5 * u, u, u);
+      // snake: yellow head fading to pink, 1px gaps for the 8-bit look
+      const drawSnake = (dx, color) => {
+        snake.forEach(([x, y], i) => {
+          ctx.fillStyle = color || mix(YELLOW, PINK, Math.min(1, i / Math.max(6, snake.length)));
+          ctx.fillRect(x * s + dpr + dx, y * s + dpr, s - 2 * dpr, s - 2 * dpr);
+        });
+      };
+      if (eatFx > 0.05) { // RGB split glitch when it eats
+        const off = Math.round(3 * eatFx) * dpr;
+        ctx.globalAlpha = 0.6 * eatFx;
+        drawSnake(off, "#00f0ff"); drawSnake(-off, "#ff2a6d");
+        ctx.globalAlpha = 1;
+        eatFx *= 0.86;
+      }
+      drawSnake(0);
+      // eyes
+      if (snake.length) {
+        const [hx, hy] = snake[0];
+        ctx.fillStyle = "#04060c";
+        const e = Math.max(2, Math.round(s / 6));
+        const cx = hx * s + s / 2, cy = hy * s + s / 2;
+        const [dx, dy] = dir;
+        const ox = dy ? s / 5 : 0, oy = dx ? s / 5 : 0;
+        ctx.fillRect(cx + dx * s / 6 - ox - e / 2, cy + dy * s / 6 - oy - e / 2, e, e);
+        ctx.fillRect(cx + dx * s / 6 + ox - e / 2, cy + dy * s / 6 + oy - e / 2, e, e);
+      }
+    }
+
+    // --- input ---
+    const turn = (d) => {
+      if (!manual) { setManual(true); queue = []; }
+      lastInput = performance.now();
+      const last = queue.length ? queue[queue.length - 1] : dir;
+      if (d[0] === -last[0] && d[1] === -last[1]) return; // no instant U-turns
+      if (d[0] === last[0] && d[1] === last[1]) return;
+      if (queue.length < 2) queue.push(d);
+    };
+    box.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { setManual(false); box.blur(); return; }
+      const d = DIRS[e.code] || DIRS[e.key];
+      if (!d) return;
+      e.preventDefault(); // arrows steer the snake, not the page
+      turn(d);
+    });
+    box.addEventListener("pointerdown", (e) => {
+      box.focus({ preventScroll: true });
+      if (e.pointerType !== "mouse") { setManual(true); say("SWIPE TO STEER", 900); }
+      else if (!manual) say("ARROWS / WASD", 900);
+      box._sx = e.clientX; box._sy = e.clientY;
+    });
+    box.addEventListener("pointerup", (e) => {
+      const dx = e.clientX - (box._sx ?? e.clientX), dy = e.clientY - (box._sy ?? e.clientY);
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+      turn(Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
+    });
+    box.addEventListener("blur", () => { if (manual && performance.now() - lastInput > 1500) setManual(false); });
+
+    // --- loop: only while on screen ---
+    new IntersectionObserver((en) => { visible = en[0].isIntersecting; }).observe(box);
+    new ResizeObserver(resize).observe(screen);
+    hiEl.textContent = pad(hi);
+    resize();
+
+    gsap.ticker.add((time, dt) => {
+      if (!visible || document.hidden || !cols) return;
+      if (reduceMotion && !manual) { draw(0); return; } // no autoplay for reduced motion
+      acc = Math.min(acc + dt, 400); // after a background tab, don't fast-forward dozens of moves
+      const every = manual ? STEP.manual : STEP.auto;
+      while (acc >= every) { acc -= every; step(); }
+      draw(performance.now());
+    });
   }
 
   /* ---------------------------------------------------------
