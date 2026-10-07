@@ -202,33 +202,26 @@
           </div>
         </header>
         <div class="panel__body grid-3">
-          <article class="gig" data-reveal>
+          <article class="gig" data-reveal data-project="nocasiem" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Open NocaSIEM gig file">
             <div class="gig__thumb"><img src="assets/projects/nocasiem.jpg" alt="NocaSIEM dashboard" loading="lazy" /></div>
             <div class="gig__id">#001 <span>SECURITY / SIEM</span></div>
             <h4>NocaSIEM</h4>
             <p>Self-hosted SIEM that hoovers up logs from every corner of the net, runs 'em past 65 detection rules mapped to MITRE ATT&amp;CK, and lights up a live dashboard the second someone tries to slip through the ICE.</p>
-            <div class="gig__links">
-              <a href="https://github.com/Nocaterate/NocaSIEM" class="gig__link" target="_blank" rel="noopener noreferrer">GITHUB ▸</a>
-            </div>
+            <span class="gig__open">OPEN GIG FILE ▸</span>
           </article>
-          <article class="gig" data-reveal>
+          <article class="gig" data-reveal data-project="cuciyuk" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Open CuciYuk! gig file">
             <div class="gig__thumb"><img src="assets/projects/cuciyuk.jpg" alt="CuciYuk! app" loading="lazy" /></div>
             <div class="gig__id">#002 <span>WEB APP</span></div>
             <h4>CuciYuk!</h4>
             <p>Laundry gig for busy chooms. Book a pickup and delivery in a few taps, track the order, and never touch a washer again.</p>
-            <div class="gig__links">
-              <a href="https://github.com/Nocaterate/CuciYuk" class="gig__link" target="_blank" rel="noopener noreferrer">GITHUB ▸</a>
-            </div>
+            <span class="gig__open">OPEN GIG FILE ▸</span>
           </article>
-          <article class="gig" data-reveal>
+          <article class="gig" data-reveal data-project="batara-kuwera" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Open Batara Kuwera gig file">
             <div class="gig__thumb"><img src="assets/projects/batara-kuwera.jpg" alt="Batara Kuwera app" loading="lazy" /></div>
             <div class="gig__id">#003 <span>FINTECH</span></div>
             <h4>Batara Kuwera</h4>
             <p>Keeps your eddies in check. Tracks spending and budgets so you know exactly where every eurodollar flows, before it's all gone.</p>
-            <div class="gig__links">
-              <a href="https://github.com/Nocaterate/Batara-Kuwera" class="gig__link" target="_blank" rel="noopener noreferrer">GITHUB ▸</a>
-              <a href="https://batarakuwera.web.id" class="gig__link" target="_blank" rel="noopener noreferrer">LIVE DEMO ▸</a>
-            </div>
+            <span class="gig__open">OPEN GIG FILE ▸</span>
           </article>
         </div>
       </section>
@@ -261,6 +254,30 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- ========== GIG FILE (project summary box) ========== -->
+  <div class="brief" id="brief" role="dialog" aria-modal="true" aria-labelledby="brief-title" hidden>
+    <div class="brief__backdrop" data-close></div>
+    <div class="brief__panel" data-lenis-prevent>
+      <div class="brief__tag">GIG FILE // <span class="brief__id">#001</span></div>
+      <button class="brief__close" type="button" aria-label="Close gig file" data-close>✕</button>
+      <div class="brief__media">
+        <img class="brief__img" alt="" />
+        <button class="brief__nav brief__nav--prev" type="button" aria-label="Previous screenshot">‹</button>
+        <button class="brief__nav brief__nav--next" type="button" aria-label="Next screenshot">›</button>
+        <span class="brief__count">1 / 3</span>
+        <div class="brief__dots"></div>
+      </div>
+      <div class="brief__body">
+        <p class="brief__cat"></p>
+        <h4 class="brief__title" id="brief-title"></h4>
+        <div class="brief__sec"><h5>// OVERVIEW</h5><p class="brief__overview"></p></div>
+        <div class="brief__sec"><h5>// THE PROBLEM</h5><p class="brief__problem"></p></div>
+        <div class="brief__sec"><h5>// THE FIX</h5><p class="brief__solution"></p></div>
+        <div class="brief__links"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>

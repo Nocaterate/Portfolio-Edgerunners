@@ -33,7 +33,7 @@ html.is-locked, html.is-locked body { overflow: hidden; }
 a { color: inherit; text-decoration: none; }
 
 /* cyber scrollbar */
-html { scrollbar-width: thin; scrollbar-color: var(--yellow) #05060a; }
+html { scrollbar-width: thin; scrollbar-color: var(--yellow) #05060a; scrollbar-gutter: stable; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #05060a; }
 ::-webkit-scrollbar-thumb { background: var(--yellow); }
@@ -629,8 +629,99 @@ body.has-cursor .cursor { display: block; }
 }
 .gig__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s cubic-bezier(.2,.8,.2,1), filter .5s; filter: saturate(.85) brightness(.9); }
 .gig:hover .gig__thumb img { transform: scale(1.06); filter: saturate(1.1) brightness(1); }
-.gig__links { margin-top: auto; padding-top: 18px; display: flex; flex-wrap: wrap; gap: 18px; }
-.gig__links .gig__link { margin-top: 0; }
+.gig { cursor: pointer; }
+.gig:focus-visible { outline: 2px solid var(--yellow); outline-offset: 4px; }
+.gig__open {
+  margin-top: auto; padding-top: 18px;
+  font-family: var(--f-mono); font-size: .8rem; letter-spacing: .2em; color: var(--yellow);
+  transition: letter-spacing .3s;
+}
+.gig:hover .gig__open { letter-spacing: .35em; }
+
+/* lock the page behind an open gig file (Lenis adds this class when stopped) */
+html.lenis-stopped { overflow: hidden; }
+
+/* ---------- GIG FILE (project summary box) ---------- */
+.brief { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; padding: 24px 16px; }
+.brief[hidden] { display: none; }
+.brief__backdrop {
+  position: absolute; inset: 0;
+  background: rgba(3,4,8,.78);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity .3s ease;
+}
+.brief.is-open .brief__backdrop { opacity: 1; }
+.brief__panel {
+  --cut: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px));
+  position: relative;
+  width: min(760px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain;
+  background: linear-gradient(160deg, #0b1324, #070a14);
+  border: 1px solid rgba(252,238,10,.45);
+  box-shadow: 0 0 60px rgba(252,238,10,.12);
+  clip-path: var(--cut);
+  scrollbar-width: thin; scrollbar-color: var(--yellow) transparent;
+}
+.brief__panel::before { /* scan bar used by the glitch-in */
+  content: ""; position: absolute; left: 0; right: 0; z-index: 3; top: var(--gy, 40%); height: 7px;
+  background: linear-gradient(90deg, transparent, rgba(0,240,255,.75) 20%, rgba(255,42,109,.75) 60%, transparent);
+  mix-blend-mode: screen; opacity: 0; pointer-events: none;
+}
+.brief__tag {
+  position: absolute; top: 0; left: 0; z-index: 2;
+  background: var(--yellow); color: #000;
+  font-family: var(--f-mono); font-size: .72rem; letter-spacing: .2em; padding: 4px 12px;
+}
+.brief__close {
+  position: absolute; top: 10px; right: 40px; z-index: 2;
+  width: 36px; height: 36px; display: grid; place-items: center;
+  background: rgba(5,6,10,.7); color: var(--ink); border: 1px solid rgba(255,255,255,.2);
+  font-size: 1rem; cursor: pointer; transition: color .2s, border-color .2s;
+}
+.brief__close:hover { color: var(--pink); border-color: var(--pink); }
+.brief__media { position: relative; aspect-ratio: 16 / 9; background: #05060a; border-bottom: 1px solid rgba(252,238,10,.3); overflow: hidden; }
+.brief__img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brief__img.is-swap { animation: briefSwap .32s steps(1, end); }
+@keyframes briefSwap {
+  0%   { clip-path: inset(0 0 60% 0); translate: -8px 0; filter: hue-rotate(80deg); }
+  25%  { clip-path: inset(35% 0 20% 0); translate: 6px 0; }
+  50%  { clip-path: inset(0 0 0 0); translate: -3px 0; filter: none; }
+  75%  { clip-path: inset(70% 0 0 0); translate: 2px 0; }
+  100% { clip-path: inset(0 0 0 0); translate: 0 0; }
+}
+.brief__nav {
+  position: absolute; top: 50%; translate: 0 -50%; width: 40px; height: 40px;
+  display: grid; place-items: center;
+  background: rgba(5,6,10,.7); color: var(--yellow); border: 1px solid rgba(252,238,10,.4);
+  font-size: 1.5rem; line-height: 1; cursor: pointer; transition: background .2s;
+}
+.brief__nav:hover { background: rgba(252,238,10,.15); }
+.brief__nav--prev { left: 12px; }
+.brief__nav--next { right: 12px; }
+.brief__count {
+  position: absolute; left: 12px; bottom: 12px;
+  font-family: var(--f-mono); font-size: .72rem; letter-spacing: .15em;
+  background: rgba(5,6,10,.75); padding: 3px 8px; color: var(--ink);
+}
+.brief__dots { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; display: flex; gap: 6px; }
+.brief__dots button { width: 18px; height: 4px; border: 0; padding: 0; background: rgba(255,255,255,.35); cursor: pointer; }
+.brief__dots button.is-active { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+.brief__body { padding: 26px 30px 32px; }
+.brief__cat { font-family: var(--f-mono); font-size: .75rem; letter-spacing: .25em; color: var(--pink); }
+.brief__title { font-family: var(--f-display); font-weight: 900; font-size: clamp(1.4rem, 3.4vw, 2rem); color: var(--yellow); margin: 4px 0 18px; }
+.brief__sec + .brief__sec { margin-top: 16px; }
+.brief__sec h5 { font-family: var(--f-mono); font-weight: 400; font-size: .75rem; letter-spacing: .25em; color: var(--cyan); margin-bottom: 4px; }
+.brief__sec p { color: var(--dim); line-height: 1.55; }
+.brief__links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.brief__links a {
+  font-family: var(--f-mono); letter-spacing: .2em; font-size: .82rem;
+  padding: 10px 18px; border: 1px solid var(--yellow); color: var(--yellow);
+  transition: background .2s, color .2s, box-shadow .2s;
+}
+.brief__links a:hover { background: var(--yellow); color: #000; box-shadow: 0 0 24px rgba(252,238,10,.5); }
+@media (max-width: 560px) {
+  .brief__body { padding: 22px 18px 26px; }
+  .brief__close { right: 14px; }
+}
 .gig__id {
   display: flex; justify-content: space-between;
   font-family: var(--f-mono); color: var(--pink); font-size: .8rem; letter-spacing: .2em;

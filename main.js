@@ -219,6 +219,7 @@
     initSmoothScroll();
     initScroll();
     initDust();
+    initGigFiles();
 
     // Built now (paused) so its start state is already applied before the reveal
     entrance = gsap.timeline({ paused: true })
@@ -474,7 +475,8 @@
       if (p >= 0.999) return;
 
       const beat = parseFloat(h2.style.getPropertyValue("--beat")) || 0;
-      const g = smoothstep(0, 0.12, p); // glitch intensity ramps in
+      const gs = smoothstep(0, 0.12, p); // scroll glitch ramps in
+      const g = Math.max(gs, idle);      // idle bursts glitch the crisp title too
 
       // 1) mosaic: blocks grow from crisp to chunky
       const block = 1 + 22 * Math.pow(p, 1.5);
@@ -509,14 +511,15 @@
       }
 
       // 3) draw in horizontal bands; some bands jump sideways, with red/cyan split
-      const split = (2 + 10 * p) * g * dpr;
+      const split = ((2 + 10 * p) * gs + 6 * idle) * dpr;
       const glow = (20 + beat * 40) * (1 - p) * dpr;
       const bands = [];
       if (g > 0) {
         let y = 0;
         while (y < H) {
           const bh = 3 + Math.random() * 16;
-          const jump = Math.random() < 0.12 + 0.45 * p ? (Math.random() - 0.5) * 90 * p * g : 0;
+          const jump = Math.random() < 0.12 + 0.45 * p + 0.22 * idle
+            ? (Math.random() - 0.5) * (90 * p * gs + 52 * idle) : 0;
           bands.push([y, bh, jump]);
           y += bh;
         }
@@ -552,14 +555,27 @@
       ctx.globalAlpha = 1;
     }
 
-    // Redraw every frame while the title is on screen (the edge flicker lives even when idle)
-    let lastP = -1, lastBeat = -1;
+    // Idle glitch: while the title sits crisp, throw a short burst every 2–5 s
+    // (sometimes a quick double-hit)
+    let idle = 0, burstUntil = 0, nextBurst = 0;
+    const idleGlitch = (now) => {
+      if (reduceMotion || !revealed || fx.p > 0.02) { nextBurst = now + 2500; return 0; }
+      if (now >= nextBurst) {
+        burstUntil = now + gsap.utils.random(150, 300);
+        nextBurst = Math.random() < 0.35 ? burstUntil + 110 : now + gsap.utils.random(2000, 5000);
+      }
+      return now < burstUntil ? (Math.random() < 0.75 ? 1 : 0.35) : 0;
+    };
+
+    // Redraw while the title is on screen and something changed
+    let lastP = -1, lastBeat = -1, lastIdle = 0;
     gsap.ticker.add(() => {
       if (scrollY > innerHeight * 3) return;
+      idle = idleGlitch(performance.now());
       const beat = h2.style.getPropertyValue("--beat");
       const animating = fx.p > 0.001 && fx.p < 0.999;
-      if (animating || fx.p !== lastP || beat !== lastBeat) render();
-      lastP = fx.p; lastBeat = beat;
+      if (animating || idle || lastIdle || fx.p !== lastP || beat !== lastBeat) render();
+      lastP = fx.p; lastBeat = beat; lastIdle = idle;
     });
 
     const relayout = () => { layout(); render(); };
@@ -580,13 +596,11 @@
     ScrollTrigger.addEventListener("refreshInit", layoutPan);
     if (!baseImg.complete) baseImg.addEventListener("load", () => ScrollTrigger.refresh());
 
-    // --- HERO: camera pushes in on David & Lucy, title pixel-dissolves ---
+    // --- HERO: text fades, title pixel-dissolves, quote (the camera is driven by the rig below) ---
     gsap.timeline({
       scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom bottom", scrub: 1.2, invalidateOnRefresh: true },
       defaults: { ease: "none" },
     })
-      .fromTo(cam, { scale: 1, rotate: 0 }, { scale: 1.32, rotate: -1.5, duration: 0.7, ease: "power1.inOut" }, 0)
-      .fromTo(pan, { y: () => geo().yStart }, { y: () => geo().yMid, duration: 1, ease: "power1.in" }, 0)
       .to([".hero__kicker", ".hero__sub", ".hero__scroll"], {
         opacity: 0, y: -60, filter: "blur(6px)", duration: 0.22, stagger: 0.03,
       }, 0)
@@ -594,34 +608,74 @@
       .fromTo(".hero__quote",
         { opacity: 0, letterSpacing: "0.6em", y: 30, filter: "blur(8px)" },
         { opacity: 1, letterSpacing: "0.12em", y: 0, filter: "blur(0px)", duration: 0.2 }, 0.45)
-      .to(".hero__quote", { opacity: 0, y: -40, filter: "blur(8px)", duration: 0.15 }, 0.85)
-      .to(dim, { opacity: 0.15, duration: 0.4 }, 0.6);
+      .to(".hero__quote", { opacity: 0, y: -40, filter: "blur(8px)", duration: 0.15 }, 0.85);
 
     // Scroll position where the HUD readout shows a given altitude
     const altToScroll = (alt) => ScrollTrigger.maxScroll(window) * (1 - Math.cbrt(alt / MOON_DISTANCE));
 
-    // --- DRIFT: keep the camera alive between the hero and the dive ---
-    gsap.fromTo(cam, { scale: 1.32, rotate: -1.5 }, {
-      scale: 1.38, rotate: -2.5, ease: "none", immediateRender: false,
-      scrollTrigger: {
-        trigger: ".hero", start: "bottom bottom",
-        end: () => altToScroll(DIVE_START_ALT),
-        scrub: 1.2, invalidateOnRefresh: true,
-      },
-    });
+    // --- CAMERA RIG -------------------------------------------------------------
+    // Zoom / tilt / pan / darkness are ONE function of scroll position with ONE shared
+    // smoothing. (Four separately-scrubbed timelines used to fight over the camera
+    // while catching up, which made it snap: random zoom-out / zoom-in.)
+    //   hero   0 → heroEnd          push in on David & Lucy
+    //   drift  heroEnd → diveStart  slow push + tilt
+    //   dive   diveStart → about    glide down onto the moon surface (from 068114 km)
+    //   portal about enters → 25%   plunge into the surface
+    const marks = { heroEnd: 1, diveStart: 2, portalStart: 3, portalEnd: 4 };
+    const docTop = (el) => el.getBoundingClientRect().top + scrollY;
+    const measure = () => {
+      const vh = innerHeight;
+      const hero = $(".hero"), aboutTop = docTop($("#about"));
+      marks.heroEnd = docTop(hero) + hero.offsetHeight - vh;
+      marks.diveStart = Math.max(marks.heroEnd + 1, altToScroll(DIVE_START_ALT));
+      marks.portalStart = Math.max(marks.diveStart + 1, aboutTop - vh);
+      marks.portalEnd = Math.max(marks.portalStart + 1, aboutTop - vh * 0.25);
+    };
+    ScrollTrigger.addEventListener("refresh", measure);
 
-    // --- DIVE: from 068114 km the camera plunges down the wallpaper onto the moon surface ---
-    gsap.timeline({
-      scrollTrigger: {
-        start: () => altToScroll(DIVE_START_ALT),
-        endTrigger: "#about", end: "top bottom",
-        scrub: 1.4, invalidateOnRefresh: true,
-      },
-      defaults: { ease: "none" },
-    })
-      .fromTo(pan, { y: () => geo().yMid }, { y: () => geo().yEnd, duration: 1, ease: "power2.inOut", immediateRender: false }, 0)
-      .fromTo(cam, { scale: 1.38, rotate: -2.5 }, { scale: 1.08, rotate: 0.5, duration: 1, ease: "power1.inOut", immediateRender: false }, 0)
-      .fromTo(cam, { rotateX: 0 }, { rotateX: 9, transformPerspective: 1400, duration: 0.4, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0.1);
+    const ease = {
+      p1io: gsap.parseEase("power1.inOut"), p1in: gsap.parseEase("power1.in"),
+      p2io: gsap.parseEase("power2.inOut"), p2in: gsap.parseEase("power2.in"),
+    };
+    const seg = (y, a, b) => gsap.utils.clamp(0, 1, (y - a) / (b - a));
+
+    function camTarget(y) {
+      const g = geo();
+      const h = seg(y, 0, marks.heroEnd);
+      const d = seg(y, marks.heroEnd, marks.diveStart);
+      const v = seg(y, marks.diveStart, marks.portalStart);
+      const w = seg(y, marks.portalStart, marks.portalEnd);
+      const push = ease.p1io(Math.min(h / 0.7, 1));
+      return {
+        scale: 1 + 0.32 * push + 0.06 * d - 0.30 * ease.p1io(v) + 0.82 * ease.p2in(w),
+        rot: -1.5 * push - 1.0 * d + 3.0 * ease.p1io(v),
+        tilt: 9 * Math.sin(Math.PI * gsap.utils.clamp(0, 1, (v - 0.1) / 0.8)),
+        panY: g.yStart + (g.yMid - g.yStart) * ease.p1in(h) + (g.yEnd - g.yMid) * ease.p2io(v),
+        dim: 0.15 * seg(h, 0.6, 1) + 0.75 * ease.p1in(seg(w, 0.1, 0.65)),
+      };
+    }
+
+    gsap.set(cam, { transformPerspective: 1400 });
+    const setSX = gsap.quickSetter(cam, "scaleX"), setSY = gsap.quickSetter(cam, "scaleY"); // quickSetter has no "scale" shorthand
+    const apply = {
+      scale: (v) => { setSX(v); setSY(v); },
+      rot: gsap.quickSetter(cam, "rotation", "deg"),
+      tilt: gsap.quickSetter(cam, "rotationX", "deg"),
+      panY: gsap.quickSetter(pan, "y", "px"),
+      dim: gsap.quickSetter(dim, "opacity"),
+    };
+    let camNow = null;
+    gsap.ticker.add((time, deltaMs) => {
+      const target = camTarget(scrollY);
+      if (!camNow) camNow = { ...target };
+      const k = 1 - Math.pow(1 - 0.09, (deltaMs || 16.7) / 16.7); // same feel at any frame rate
+      let moving = false;
+      for (const key in target) {
+        const diff = target[key] - camNow[key];
+        if (Math.abs(diff) > 1e-4) { camNow[key] += diff * k; moving = true; }
+      }
+      if (moving) for (const key in apply) apply[key](camNow[key]);
+    });
 
     // --- PORTAL: plunge into the surface, then the section video switches on like a CRT ---
     const vid = $(".stage__video");
@@ -636,8 +690,6 @@
       scrollTrigger: { trigger: "#about", start: "top bottom", end: "top 25%", scrub: 1, invalidateOnRefresh: true },
       defaults: { ease: "none" },
     })
-      .fromTo(cam, { scale: 1.08 }, { scale: 1.9, duration: 1, ease: "power2.in", immediateRender: false }, 0)
-      .to(dim, { opacity: 0.9, duration: 0.55, ease: "power1.in" }, 0.1)
       .to(dust, { opacity: 0, duration: 0.4 }, 0.35)
       .fromTo(flashLine, { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.2, ease: "power2.out", immediateRender: false }, 0.45)
       .fromTo(vid, { autoAlpha: 0, clipPath: "inset(50% 0% 50% 0%)" },
@@ -765,6 +817,144 @@
     });
 
     ScrollTrigger.refresh();
+    measure();
+  }
+
+  /* ---------------------------------------------------------
+     GIG FILES — click a project box to open its summary
+     --------------------------------------------------------- */
+  const GIGS = {
+    nocasiem: {
+      id: "#001", title: "NocaSIEM", category: "SECURITY / SIEM",
+      overview: "NocaSIEM is a self-hosted Security Information and Event Management rig. It pulls in logs from Windows, Linux, routers, firewalls and web servers over syslog, then runs every line past 65 detection rules mapped to MITRE ATT&CK to flag shady activity in real time.",
+      problem: "Most small crews and home labs are flying blind. With no central place collecting and correlating logs, attacks and misconfigs slip by unnoticed till it's way too late.",
+      solution: "NocaSIEM hoovers up every log over syslog, ranks detections by severity against MITRE ATT&CK, and throws alerts onto a dashboard that updates live. Full-text log search and a built-in attack simulator let you test your detections before the real gonks show up.",
+      links: [["GITHUB ▸", "https://github.com/Nocaterate/NocaSIEM"]],
+      images: 3,
+    },
+    cuciyuk: {
+      id: "#002", title: "CuciYuk!", category: "WEB APP",
+      overview: "CuciYuk! is an online laundry platform. Book and manage pickups and deliveries straight from your phone or browser.",
+      problem: "Plenty of chooms are too busy, or too lazy, to do their own laundry, and the usual options are a pain to book.",
+      solution: "CuciYuk! turns ordering laundry into a few taps, with express scheduling and order tracking in a clean, no-nonsense app.",
+      links: [["GITHUB ▸", "https://github.com/Nocaterate/CuciYuk"]],
+      images: 3,
+    },
+    "batara-kuwera": {
+      id: "#003", title: "Batara Kuwera", category: "FINTECH",
+      overview: "Batara Kuwera is a personal finance rig that tracks spending, budgets and overall financial health, all in one place.",
+      problem: "Plenty of people burn through their eddies without knowing how to split or manage 'em. Spending happens way faster than tracking does.",
+      solution: "Batara Kuwera lays your spending patterns bare and gives you guidance on budgeting and allocation, so every eurodollar goes where you actually meant it to.",
+      links: [["GITHUB ▸", "https://github.com/Nocaterate/Batara-Kuwera"], ["LIVE DEMO ▸", "https://batarakuwera.web.id"]],
+      images: 3,
+    },
+  };
+
+  function initGigFiles() {
+    const brief = $("#brief");
+    const panel = $(".brief__panel", brief);
+    const img = $(".brief__img", brief);
+    const dots = $(".brief__dots", brief);
+    const count = $(".brief__count", brief);
+    const prevBtn = $(".brief__nav--prev", brief);
+    const nextBtn = $(".brief__nav--next", brief);
+    let gig = null, slug = "", index = 0, opener = null;
+
+    const src = (i) => `assets/projects/${slug}-${i + 1}.jpg`;
+
+    function show(i, swap = true) {
+      index = (i + gig.images) % gig.images;
+      img.src = src(index);
+      img.alt = `${gig.title} screenshot ${index + 1}`;
+      count.textContent = `${index + 1} / ${gig.images}`;
+      [...dots.children].forEach((d, k) => d.classList.toggle("is-active", k === index));
+      if (swap && !reduceMotion) {
+        img.classList.remove("is-swap");
+        void img.offsetWidth; // restart the glitch swap
+        img.classList.add("is-swap");
+      }
+    }
+
+    function open(key, from) {
+      gig = GIGS[key];
+      if (!gig) return;
+      slug = key; opener = from;
+      gsap.killTweensOf(panel); // reopening mid-close must not get hidden by the close animation
+      gsap.set(panel, { clearProps: "opacity,scale" });
+
+      $(".brief__id", brief).textContent = gig.id;
+      $(".brief__cat", brief).textContent = gig.category;
+      $(".brief__title", brief).textContent = gig.title;
+      $(".brief__overview", brief).textContent = gig.overview;
+      $(".brief__problem", brief).textContent = gig.problem;
+      $(".brief__solution", brief).textContent = gig.solution;
+      $(".brief__links", brief).replaceChildren(...gig.links.map(([label, href]) => {
+        const a = document.createElement("a");
+        a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = label;
+        return a;
+      }));
+      dots.replaceChildren(...Array.from({ length: gig.images }, (_, k) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.setAttribute("aria-label", `Screenshot ${k + 1}`);
+        b.addEventListener("click", () => show(k));
+        return b;
+      }));
+      const multi = gig.images > 1;
+      prevBtn.hidden = nextBtn.hidden = dots.hidden = count.hidden = !multi;
+      for (let k = 0; k < gig.images; k++) new Image().src = src(k); // preload the slides
+      show(0, false);
+
+      brief.hidden = false;
+      panel.scrollTop = 0;
+      if (lenis) lenis.stop();
+      void brief.offsetWidth; // flush styles so the backdrop fade-in transition runs
+      brief.classList.add("is-open");
+      if (!reduceMotion) {
+        panel.style.setProperty("--gy", `${20 + Math.random() * 60}%`);
+        panel.classList.remove("glitch-in");
+        void panel.offsetWidth;
+        panel.classList.add("glitch-in");
+        setTimeout(() => panel.classList.remove("glitch-in"), 800);
+      }
+      $(".brief__close", brief).focus({ preventScroll: true });
+    }
+
+    function close() {
+      if (brief.hidden || !brief.classList.contains("is-open")) return;
+      brief.classList.remove("is-open");
+      gsap.to(panel, {
+        opacity: 0, scale: 0.97, duration: 0.2, ease: "power2.in",
+        onComplete: () => { brief.hidden = true; gsap.set(panel, { clearProps: "opacity,scale" }); },
+      });
+      if (lenis) lenis.start();
+      if (opener) opener.focus({ preventScroll: true });
+    }
+
+    // open from the project boxes (click, Enter or Space)
+    $$(".gig[data-project]").forEach((card) => {
+      card.addEventListener("click", () => open(card.dataset.project, card));
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(card.dataset.project, card); }
+      });
+    });
+
+    brief.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) close(); });
+    prevBtn.addEventListener("click", () => show(index - 1));
+    nextBtn.addEventListener("click", () => show(index + 1));
+
+    document.addEventListener("keydown", (e) => {
+      if (brief.hidden) return;
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "ArrowLeft" && gig.images > 1) show(index - 1);
+      else if (e.key === "ArrowRight" && gig.images > 1) show(index + 1);
+      else if (e.key === "Tab") {
+        // keep keyboard focus inside the gig file
+        const items = [...panel.querySelectorAll("button:not([hidden]), a[href]")].filter((el) => !el.closest("[hidden]"));
+        const first = items[0], last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
   }
 
   /* ---------------------------------------------------------
