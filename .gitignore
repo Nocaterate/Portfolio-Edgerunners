@@ -1,0 +1,11 @@
+# local tooling
+.claude/
+
+# unused source assets (kept locally, not published)
+assets/bg-original.jpg
+assets/transition.mp4
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store

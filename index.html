@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en" class="is-locked">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NOCATERATE</title>
+  <meta name="theme-color" content="#05060a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link rel="preload" as="image" href="assets/bg.jpg" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- custom cursor (desktop only) -->
+  <div class="cursor" aria-hidden="true"><div class="cursor__ring"></div><div class="cursor__dot"></div></div>
+
+  <!-- ========== 1. INTRO SCREEN ========== -->
+  <div id="intro" class="intro">
+    <img class="intro__bg" src="assets/bg-wide.jpg" alt="" />
+    <div class="intro__shade"></div>
+    <div class="noise"></div>
+    <div class="scanlines"></div>
+
+    <div class="intro__corner intro__corner--tl">SYS://NC-2077</div>
+    <div class="intro__corner intro__corner--tr">NIGHT CITY <span class="blink">●</span> LIVE</div>
+    <div class="intro__corner intro__corner--bl intro__boot">
+      <p>&gt; KIROSHI OPTICS v2.0 ........ <b>OK</b></p>
+      <p>&gt; NEURAL LINK SYNC ........... <b>OK</b></p>
+      <p>&gt; LOADING BRAINDANCE MOON.bd . <b class="boot-pct">000%</b></p>
+    </div>
+    <div class="intro__corner intro__corner--br">v1.0 // EDGERUNNER</div>
+
+    <div class="intro__center">
+      <h1 class="intro__title glitch" data-text="N O C A T E R A T E">N O C A T E R A T E</h1>
+      <div class="intro__bar"><span></span></div>
+      <p class="intro__prompt">click anywhere to continue</p>
+    </div>
+  </div>
+
+  <!-- ========== 2. TRANSITION ========== -->
+  <div id="transition" class="transition" aria-hidden="true">
+    <!-- your clip + a rendered bridge that lands on the site's exact opening frame -->
+    <video id="transition-video" src="assets/transition-full.mp4" playsinline preload="auto"></video>
+    <div class="transition__fallback">
+      <div class="slices"></div>
+      <div class="transition__text glitch" data-text="JACKING IN">JACKING IN</div>
+    </div>
+    <div class="transition__skip">click to skip ▸▸</div>
+  </div>
+
+  <audio id="bgm" src="assets/music.mp3" loop preload="auto"></audio>
+
+
+
+  <!-- ========== 3. PORTFOLIO ========== -->
+  <div id="site" class="site">
+
+    <!-- Background: a virtual camera flying over the tall wallpaper -->
+    <div class="stage" aria-hidden="true">
+      <div class="stage__cam">
+        <div class="stage__pan">
+          <img class="stage__img stage__img--base" src="assets/bg.jpg" alt="" />
+          <img class="stage__img stage__img--r" src="assets/bg-red.jpg" alt="" />
+          <img class="stage__img stage__img--c" src="assets/bg-cyan.jpg" alt="" />
+          <div class="stage__earthglow"></div>
+        </div>
+      </div>
+      <div class="stage__dim"></div>
+      <!-- Background for About / Work / Contact (silent clip; buffered in the background after the intro) -->
+      <div class="stage__video">
+        <video class="stage__video-el" src="assets/sections-bg.mp4" muted loop playsinline preload="metadata" disablepictureinpicture></video>
+        <div class="stage__grid"></div>
+        <div class="stage__video-shade"></div>
+      </div>
+      <div class="stage__flash"></div>
+      <canvas class="stage__dust"></canvas>
+      <div class="stage__vignette"></div>
+      <div class="scanlines"></div>
+      <div class="noise"></div>
+    </div>
+
+    <!-- HUD overlay -->
+    <div class="hud">
+      <div class="hud__progress"><span></span></div>
+      <a href="#top" class="hud__brand">NC<span>//</span></a>
+      <nav class="hud__nav">
+        <a href="#about"><i>01</i> ABOUT</a>
+        <a href="#work"><i>02</i> WORK</a>
+        <a href="#contact"><i>03</i> CONTACT</a>
+      </nav>
+      <button class="hud__sound" type="button" aria-label="Toggle music">
+        <span class="eq"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="hud__sound-text">
+          <span class="hud__sound-label">SOUND ON</span>
+          <span class="hud__track">I REALLY WANT TO STAY AT YOUR HOUSE</span>
+        </span>
+      </button>
+      <div class="hud__readout">
+        <span class="hud__alt">ALT <b class="hud__alt-val">384400</b> KM</span>
+        <span>SCROLL <b class="hud__pct">000</b>%</span>
+      </div>
+      <div class="hud__frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <main class="content">
+
+      <!-- HERO (sticky, camera push-in) -->
+      <section class="hero" id="top">
+        <div class="hero__sticky">
+          <div class="hero__inner">
+            <p class="hero__kicker">// WELCOME TO MY SLICE OF NIGHT CITY, CHOOM</p>
+            <h2 class="hero__title" aria-label="NOCATERATE">NOCATERATE</h2>
+            <p class="hero__sub">netrunner <i>·</i> blue team <i>·</i> digital ripperdoc</p>
+            <div class="hero__scroll"><span>SCROLL</span><i></i></div>
+          </div>
+          <p class="hero__quote">"someday... let's go to the moon together."</p>
+        </div>
+      </section>
+
+      <!-- marquee divider -->
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee__row marquee__row--a"><div class="marquee__track">
+          <span>NOCATERATE ✦ JACK IN ✦ TO THE MOON ✦ NIGHT CITY ✦ BLUE TEAM ✦ </span><span>NOCATERATE ✦ JACK IN ✦ TO THE MOON ✦ NIGHT CITY ✦ BLUE TEAM ✦ </span>
+        </div></div>
+        <div class="marquee__row marquee__row--b"><div class="marquee__track">
+          <span>STAY AT YOUR HOUSE ✦ DAVID ✦ LUCY ✦ CHOOM ✦ PREEM ✦ </span><span>STAY AT YOUR HOUSE ✦ DAVID ✦ LUCY ✦ CHOOM ✦ PREEM ✦ </span>
+        </div></div>
+      </div>
+
+      <!-- scroll room for the camera to dive down onto the moon surface -->
+      <div class="dive" aria-hidden="true"></div>
+
+      <!-- ABOUT -->
+      <section class="panel" id="about">
+        <div class="wipe"></div>
+        <header class="panel__head">
+          <span class="panel__num">01</span>
+          <div>
+            <p class="panel__kicker">// IDENT SCAN</p>
+            <h3 class="panel__title scramble">RUNNER_FILE</h3>
+          </div>
+        </header>
+        <div class="panel__body grid-2">
+          <div class="card card--profile" data-reveal>
+            <div class="card__tag">PROFILE.DAT</div>
+            <dl class="dossier">
+              <div><dt>HANDLE</dt><dd class="dossier__hl">NOCATERATE</dd></div>
+              <div><dt>REAL NAME</dt><dd class="dossier__redacted"><span aria-hidden="true">█████████</span> [REDACTED]</dd></div>
+              <div><dt>CLASS</dt><dd>Netrunner // Blue Team</dd></div>
+              <div><dt>SPECIALTY</dt><dd>Forensics // Reversing // Mobile Sec</dd></div>
+              <div><dt>LOCATION</dt><dd class="dossier__redacted"><span aria-hidden="true">██████</span> [CLASSIFIED]</dd></div>
+              <div><dt>STATUS</dt><dd class="dossier__live"><span class="blink">●</span> ONLINE // LEARNING SIEM</dd></div>
+            </dl>
+            <p class="dossier__bio">On the Net they call me <strong>Nocaterate</strong>. Real name? Doesn't matter, choom. A good runner never leaves a trace. I'm a netrunner in training, jacked into the Blue Team side of cybersecurity: the ones holding the ICE while every gonk out there tries to crack it.</p>
+            <p class="dossier__bio">Right now I'm chippin' in on <strong>SIEM</strong>, teaching my deck to spot intruders before they flatline the whole system.</p>
+          </div>
+          <div class="card card--skills" data-reveal>
+            <div class="card__tag">CYBERWARE</div>
+            <ul class="skills">
+              <li>
+                <span class="skills__id">MOD.01</span>
+                <h4>Digital Forensics</h4>
+                <p>Cracking open memory dumps and disk images, pulling artifacts out of the wreck, and piecing together who did what, and when. Every breach leaves a trace. I find it.</p>
+              </li>
+              <li>
+                <span class="skills__id">MOD.02</span>
+                <h4>Reverse Engineering</h4>
+                <p>Taking binaries apart, dissecting malware, and tracing program logic, static and dynamic, till the code spills every secret it's got.</p>
+              </li>
+              <li>
+                <span class="skills__id">MOD.03</span>
+                <h4>Mobile Security</h4>
+                <p>Jacking into Android apps with runtime instrumentation and static analysis to sniff out the holes before some gonk exploits 'em.</p>
+              </li>
+            </ul>
+            <p class="tools__label">// DECK LOADOUT</p>
+            <ul class="tools">
+              <li title="Web proxy &amp; testing">Burp Suite</li>
+              <li title="Packet analysis">Wireshark</li>
+              <li title="Memory forensics">Volatility3</li>
+              <li title="Disk &amp; file system forensics">The Sleuth Kit</li>
+              <li title="Digital forensics platform">Autopsy</li>
+              <li title="Binary reverse engineering">Ghidra</li>
+              <li title="APK decompilation">JADX-GUI</li>
+              <li title="APK reversing">Apktool</li>
+              <li title="Runtime instrumentation">Frida</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- WORK -->
+      <section class="panel" id="work">
+        <div class="wipe"></div>
+        <header class="panel__head">
+          <span class="panel__num">02</span>
+          <div>
+            <p class="panel__kicker">// FIXER LOG</p>
+            <h3 class="panel__title scramble">GIGS_COMPLETED</h3>
+          </div>
+        </header>
+        <div class="panel__body grid-3">
+          <article class="gig" data-reveal>
+            <div class="gig__thumb"><img src="assets/projects/nocasiem.jpg" alt="NocaSIEM dashboard" loading="lazy" /></div>
+            <div class="gig__id">#001 <span>SECURITY / SIEM</span></div>
+            <h4>NocaSIEM</h4>
+            <p>Self-hosted SIEM that hoovers up logs from every corner of the net, runs 'em past 65 detection rules mapped to MITRE ATT&amp;CK, and lights up a live dashboard the second someone tries to slip through the ICE.</p>
+            <div class="gig__links">
+              <a href="https://github.com/Nocaterate/NocaSIEM" class="gig__link" target="_blank" rel="noopener noreferrer">GITHUB ▸</a>
+            </div>
+          </article>
+          <article class="gig" data-reveal>
+            <div class="gig__thumb"><img src="assets/projects/cuciyuk.jpg" alt="CuciYuk! app" loading="lazy" /></div>
+            <div class="gig__id">#002 <span>WEB APP</span></div>
+            <h4>CuciYuk!</h4>
+            <p>Laundry gig for busy chooms. Book a pickup and delivery in a few taps, track the order, and never touch a washer again.</p>
+            <div class="gig__links">
+              <a href="https://github.com/Nocaterate/CuciYuk" class="gig__link" target="_blank" rel="noopener noreferrer">GITHUB ▸</a>
+            </div>
+          </article>
+          <article class="gig" data-reveal>
+            <div class="gig__thumb"><img src="assets/projects/batara-kuwera.jpg" alt="Batara Kuwera app" loading="lazy" /></div>
+            <div class="gig__id">#003 <span>FINTECH</span></div>
+            <h4>Batara Kuwera</h4>
+            <p>Keeps your eddies in check. Tracks spending and budgets so you know exactly where every eurodollar flows, before it's all gone.</p>
+            <div class="gig__links">
+              <a href="https://github.com/Nocaterate/Batara-Kuwera" class="gig__link" target="_blank" rel="noopener noreferrer">GITHUB ▸</a>
+              <a href="https://batarakuwera.web.id" class="gig__link" target="_blank" rel="noopener noreferrer">LIVE DEMO ▸</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- CONTACT -->
+      <section class="panel panel--last" id="contact">
+        <div class="wipe"></div>
+        <header class="panel__head">
+          <span class="panel__num">03</span>
+          <div>
+            <p class="panel__kicker">// HOLOCALL</p>
+            <h3 class="panel__title scramble">OPEN_A_LINK</h3>
+          </div>
+        </header>
+        <div class="panel__body">
+          <div class="card card--contact" data-reveal>
+            <div class="card__tag">COMMS</div>
+            <p>Got a gig, a CTF crew short one runner, or just wanna talk shop? Ping me on the Net, choom. I'll pick up.</p>
+            <div class="links">
+              <a href="https://github.com/Nocaterate" target="_blank" rel="noopener noreferrer">GITHUB</a>
+              <a href="https://www.instagram.com/nocaterate" target="_blank" rel="noopener noreferrer">INSTAGRAM</a>
+              <a href="https://www.tiktok.com/@nocaterate" target="_blank" rel="noopener noreferrer">TIKTOK</a>
+            </div>
+          </div>
+        </div>
+        <footer class="foot">
+          <p class="foot__big">SEE YOU ON THE MOON.</p>
+          <p>© 2077 NOCATERATE // STAY PREEM, CHOOM</p>
+        </footer>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
