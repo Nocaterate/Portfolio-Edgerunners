@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <link rel="preload" as="image" href="assets/bg.jpg" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20261008d" />
 </head>
 <body>
 
@@ -50,7 +50,8 @@
     <div class="transition__skip">click to skip ▸▸</div>
   </div>
 
-  <audio id="bgm" src="assets/music.mp3" loop preload="auto"></audio>
+  <!-- src is set from main.js: the song is loaded into memory so it can always seek + loop -->
+  <audio id="bgm" loop preload="auto"></audio>
 
 
 
@@ -89,6 +90,7 @@
         <a href="#about"><i>01</i> ABOUT</a>
         <a href="#work"><i>02</i> WORK</a>
         <a href="#contact"><i>03</i> CONTACT</a>
+        <a href="#breach"><i>04</i> BREACH</a>
       </nav>
       <button class="hud__sound" type="button" aria-label="Toggle music">
         <span class="eq"><i></i><i></i><i></i><i></i><i></i></span>
@@ -227,7 +229,7 @@
       </section>
 
       <!-- CONTACT -->
-      <section class="panel panel--last" id="contact">
+      <section class="panel" id="contact">
         <div class="wipe"></div>
         <header class="panel__head">
           <span class="panel__num">03</span>
@@ -236,17 +238,115 @@
             <h3 class="panel__title scramble">OPEN_A_LINK</h3>
           </div>
         </header>
-        <div class="panel__body">
-          <div class="card card--contact" data-reveal>
+        <div class="panel__body comms">
+          <div class="card comms__intro" data-reveal>
             <div class="card__tag">COMMS</div>
+            <p class="comms__status"><span class="blink">●</span> SECURE LINE OPEN</p>
+            <h4 class="comms__head">Need a netrunner?</h4>
             <p>Got a gig, a CTF crew short one runner, or just wanna talk shop? Ping me on the Net, choom. I'll pick up.</p>
-            <div class="links">
-              <a href="https://github.com/Nocaterate" target="_blank" rel="noopener noreferrer">GITHUB</a>
-              <a href="https://www.instagram.com/nocaterate" target="_blank" rel="noopener noreferrer">INSTAGRAM</a>
-              <a href="https://www.tiktok.com/@nocaterate" target="_blank" rel="noopener noreferrer">TIKTOK</a>
+            <p>Every channel's encrypted. Crack one open and jack in.</p>
+            <p class="comms__hint">// HOVER TO DECRYPT · CLICK TO JACK IN</p>
+          </div>
+          <div class="comms__channels">
+            <a class="card chan" data-reveal href="https://github.com/Nocaterate" target="_blank" rel="noopener noreferrer" data-handle="@Nocaterate" aria-label="GitHub: @Nocaterate">
+              <span class="chan__top" aria-hidden="true">
+                <span class="chan__id">CH.01</span>
+                <span class="chan__net">GITHUB</span>
+                <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="chan__handle" aria-hidden="true">@Nocaterate</span>
+              <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
+              <span class="chan__foot" aria-hidden="true">
+                <span class="chan__state">ENCRYPTED</span>
+                <span class="chan__go">JACK IN ▸</span>
+              </span>
+            </a>
+            <a class="card chan" data-reveal href="https://www.instagram.com/nocaterate" target="_blank" rel="noopener noreferrer" data-handle="@nocaterate" aria-label="Instagram: @nocaterate">
+              <span class="chan__top" aria-hidden="true">
+                <span class="chan__id">CH.02</span>
+                <span class="chan__net">INSTAGRAM</span>
+                <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="chan__handle" aria-hidden="true">@nocaterate</span>
+              <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
+              <span class="chan__foot" aria-hidden="true">
+                <span class="chan__state">ENCRYPTED</span>
+                <span class="chan__go">JACK IN ▸</span>
+              </span>
+            </a>
+            <a class="card chan" data-reveal href="https://www.tiktok.com/@n0caterate" target="_blank" rel="noopener noreferrer" data-handle="@n0caterate" aria-label="TikTok: @n0caterate">
+              <span class="chan__top" aria-hidden="true">
+                <span class="chan__id">CH.03</span>
+                <span class="chan__net">TIKTOK</span>
+                <span class="chan__signal"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="chan__handle" aria-hidden="true">@n0caterate</span>
+              <span class="chan__hex" aria-hidden="true">1C 55 BD E9 7A FF</span>
+              <span class="chan__foot" aria-hidden="true">
+                <span class="chan__state">ENCRYPTED</span>
+                <span class="chan__go">JACK IN ▸</span>
+              </span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- BREACH PROTOCOL (minigame) -->
+      <section class="panel panel--last" id="breach">
+        <div class="wipe"></div>
+        <header class="panel__head">
+          <span class="panel__num">04</span>
+          <div>
+            <p class="panel__kicker">// NETWATCH WON'T NOTICE. PROBABLY.</p>
+            <h3 class="panel__title scramble">BREACH_PROTOCOL</h3>
+          </div>
+        </header>
+        <p class="bp-intro">Think you can run the Net, choom? Breach my ICE: chain the codes in the matrix to upload every sequence before your buffer runs dry.</p>
+
+        <div class="panel__body bp" id="bp">
+          <div class="bp-box bp-matrix" data-reveal>
+            <div class="bp-box__head">
+              <span>⌗ CODE MATRIX</span>
+              <span class="bp-diff" role="group" aria-label="Difficulty">
+                <button type="button" data-diff="normal" aria-pressed="true">NORMAL</button>
+                <button type="button" data-diff="hard" aria-pressed="false">HARD</button>
+              </span>
+            </div>
+            <div class="bp-grid" aria-label="Code matrix"></div>
+            <p class="bp-turn" aria-live="polite"></p>
+            <p class="bp-rule">// Start on the top row, then alternate: pick from that column, then that row, then column…</p>
+          </div>
+
+          <div class="bp-side">
+            <div class="bp-box bp-seqs" data-reveal>
+              <div class="bp-box__head"><span>⌗ SEQUENCE REQUIRED TO UPLOAD</span></div>
+              <ol class="bp-seq-list"></ol>
+              <p class="bp-tip">ⓘ The order of the target sequences doesn't affect the matching.</p>
+            </div>
+            <div class="bp-box bp-buffer" data-reveal>
+              <div class="bp-box__head"><span>BUFFER</span><span class="bp-count">0/6</span></div>
+              <div class="bp-slots"></div>
+              <div class="bp-actions">
+                <button type="button" class="bp-btn bp-reset">RESET</button>
+                <button type="button" class="bp-btn bp-new">NEW BREACH</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bp-result" hidden>
+            <div class="bp-result__panel">
+              <p class="bp-result__kicker"></p>
+              <h4 class="bp-result__title"></h4>
+              <p class="bp-result__text"></p>
+              <ul class="bp-result__items"></ul>
+              <div class="bp-actions">
+                <button type="button" class="bp-btn bp-retry">RETRY</button>
+                <button type="button" class="bp-btn bp-new">NEW BREACH</button>
+              </div>
             </div>
           </div>
         </div>
+
         <footer class="foot">
           <p class="foot__big">SEE YOU ON THE MOON.</p>
           <p>© 2077 NOCATERATE // STAY PREEM, CHOOM</p>
@@ -283,6 +383,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
-  <script src="main.js"></script>
+  <script src="main.js?v=20261008d"></script>
 </body>
 </html>

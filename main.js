@@ -18,8 +18,19 @@
   const root = document.documentElement;
 
   const MUSIC_VOLUME = 0.6;
+  const SONG_URL = "assets/music.mp3";
+  let songReady = Promise.resolve();
   const MOON_DISTANCE = 384400; // km, drives the HUD altitude readout
   const DIVE_START_ALT = 68114;  // from this readout the camera dives down onto the moon surface
+
+  // The altitude readout counts down to 000000 exactly at the landing (About reaching 25% from
+  // the top), so sections added further down never shift where 077812 / 068114 happen.
+  let landingY = 1;
+  const measureLanding = () => {
+    const about = document.querySelector("#about");
+    if (about) landingY = Math.max(1, about.getBoundingClientRect().top + scrollY - innerHeight * 0.25);
+  };
+  const altToScroll = (alt) => landingY * (1 - Math.cbrt(alt / MOON_DISTANCE));
   // The song crossfades in under the transition sound so the lyric
   // "So get away, another way to feel..." ("S" at 30.24s) lands right as that sound ends.
   // After the track finishes, the loop restarts from 0:00 as normal.
@@ -50,9 +61,17 @@
       el.addEventListener("canplaythrough", r, { once: true });
       el.addEventListener("error", r, { once: true });
     });
+    // The song plays from an in-memory copy (blob URL), which is always seekable.
+    // Starting on the lyric and looping both seek, and not every server supports
+    // Range requests (without them the browser can't seek, so the loop silently fails).
+    songReady = fetch(SONG_URL)
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+      .then((blob) => { bgm.src = URL.createObjectURL(blob); })
+      .catch(() => { bgm.src = SONG_URL; }) // e.g. opened straight from disk (file://)
+      .then(() => whenMedia(bgm));
     const jobs = [
       new Promise((r) => (bgImg.complete ? r() : (bgImg.onload = bgImg.onerror = r))).then(() => bgImg.decode().catch(() => {})),
-      whenMedia(bgm),
+      songReady,
       whenMedia(video),
     ];
     let done = 0;
@@ -88,9 +107,11 @@
     setupAnalyser();
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
     bgm.volume = 0;
-    bgm.play().then(() => {
-      if (!musicStarted) { bgm.pause(); bgm.currentTime = SONG_START; }
-    }).catch(() => { musicOk = false; });
+    if (bgm.currentSrc) {
+      bgm.play().then(() => {
+        if (!musicStarted) { bgm.pause(); bgm.currentTime = SONG_START; }
+      }).catch(() => { musicOk = false; });
+    } // else: still downloading; the click already allows playback, startMusic waits for it
 
     trans.classList.add("is-active");
     playTransition();
@@ -220,6 +241,8 @@
     initScroll();
     initDust();
     initGigFiles();
+    initComms();
+    initBreach();
 
     // Built now (paused) so its start state is already applied before the reveal
     entrance = gsap.timeline({ paused: true })
@@ -277,6 +300,7 @@
   // fade: seconds to reach full volume; partner: a media element to fade out at the same time
   function startMusic(fade = 0.4, partner = null) {
     if (musicStarted) return;
+    if (!bgm.currentSrc) { songReady.then(() => startMusic(fade, partner)); return; } // still downloading
     musicStarted = true;
     if (!musicOk) return setNoTrack();
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
@@ -320,6 +344,12 @@
     });
   }
 
+  // Safety net: `loop` should never let the song end, but if a loop ever fails, restart it by hand
+  bgm.addEventListener("ended", () => {
+    bgm.currentTime = 0;
+    bgm.play().catch(() => {});
+  });
+
   function setNoTrack() {
     soundBtn.classList.add("is-muted");
     $(".hud__sound-label").textContent = "NO TRACK";
@@ -352,7 +382,7 @@
   const HERO_BOOST = 2;
   const BOOST_END_ALT = 77812;
   function scrollBoostAt(y) {
-    const end = ScrollTrigger.maxScroll(window) * (1 - Math.cbrt(BOOST_END_ALT / MOON_DISTANCE));
+    const end = altToScroll(BOOST_END_ALT);
     const fade = innerHeight * 0.35; // taper instead of a sudden change in speed
     const t = gsap.utils.clamp(0, 1, (y - (end - fade)) / fade);
     return 1 + (HERO_BOOST - 1) * (1 - t * t * (3 - 2 * t));
@@ -610,8 +640,9 @@
         { opacity: 1, letterSpacing: "0.12em", y: 0, filter: "blur(0px)", duration: 0.2 }, 0.45)
       .to(".hero__quote", { opacity: 0, y: -40, filter: "blur(8px)", duration: 0.15 }, 0.85);
 
-    // Scroll position where the HUD readout shows a given altitude
-    const altToScroll = (alt) => ScrollTrigger.maxScroll(window) * (1 - Math.cbrt(alt / MOON_DISTANCE));
+    // keep the landing point (and so every readout-based position) current on each refresh
+    measureLanding();
+    ScrollTrigger.addEventListener("refreshInit", measureLanding);
 
     // --- CAMERA RIG -------------------------------------------------------------
     // Zoom / tilt / pan / darkness are ONE function of scroll position with ONE shared
@@ -784,7 +815,8 @@
         const p = self.progress;
         gsap.set(bar, { scaleX: p });
         pct.textContent = String(Math.round(p * 100)).padStart(3, "0");
-        alt.textContent = String(Math.round(MOON_DISTANCE * Math.pow(1 - p, 3))).padStart(6, "0");
+        const descent = gsap.utils.clamp(0, 1, scrollY / landingY);
+        alt.textContent = String(Math.round(MOON_DISTANCE * Math.pow(1 - descent, 3))).padStart(6, "0");
       },
     });
 
@@ -955,6 +987,342 @@
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     });
+  }
+
+  /* ---------------------------------------------------------
+     COMMS — encrypted channels: handles churn as glitch glyphs,
+     decrypt on hover / focus (or when scrolled into view on touch)
+     --------------------------------------------------------- */
+  function initComms() {
+    const GLYPHS = "!<>-_\\/[]{}=+*^?#01ΞΔ¥▓▒░";
+    const HEXES = ["1C", "55", "BD", "E9", "7A", "FF"];
+    const glyph = () => GLYPHS[(Math.random() * GLYPHS.length) | 0];
+    const hexRow = () => Array.from({ length: 6 }, () => HEXES[(Math.random() * HEXES.length) | 0]).join(" ");
+    const esc = (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] || c);
+    const touch = matchMedia("(hover: none)").matches;
+
+    const chans = $$(".chan").map((el) => {
+      const c = {
+        el,
+        handle: el.dataset.handle,
+        out: $(".chan__handle", el),
+        hex: $(".chan__hex", el),
+        state: $(".chan__state", el),
+        d: reduceMotion ? 1 : 0, // 0 = scrambled, 1 = clear
+        visible: false,
+        tween: null,
+      };
+      c.render = () => {
+        const n = c.handle.length;
+        const clear = Math.round(c.d * n);
+        let html = "";
+        for (let i = 0; i < n; i++) {
+          const ch = c.handle[i];
+          if (i < clear || ch === "@") html += esc(ch);
+          else if (Math.random() < 0.12) html += `<b class="leak">${esc(ch)}</b>`; // signal leaking through
+          else html += `<b>${esc(glyph())}</b>`;
+        }
+        c.out.innerHTML = html;
+      };
+      c.setState = () => {
+        const open = c.d >= 1;
+        el.classList.toggle("is-decrypted", open);
+        c.state.textContent = open ? "LINK ESTABLISHED" : c.d > 0 ? "DECRYPTING..." : "ENCRYPTED";
+      };
+      c.to = (target) => {
+        if (reduceMotion) return;
+        if (c.tween) c.tween.kill();
+        c.tween = gsap.to(c, {
+          d: target, duration: target ? 0.7 : 0.4, ease: target ? "power1.inOut" : "power2.in",
+          onUpdate: () => { c.render(); c.hex.textContent = hexRow(); c.setState(); },
+          onComplete: () => { c.render(); c.setState(); },
+        });
+      };
+      c.render(); c.setState();
+
+      if (!touch) {
+        el.addEventListener("mouseenter", () => c.to(1));
+        el.addEventListener("mouseleave", () => c.to(0));
+      }
+      el.addEventListener("focus", () => c.to(1));
+      el.addEventListener("blur", () => c.to(0));
+      return c;
+    });
+
+    // only churn the channels that are on screen; on touch screens they decrypt themselves
+    const io = new IntersectionObserver((entries) => entries.forEach((en) => {
+      const c = chans.find((x) => x.el === en.target);
+      c.visible = en.isIntersecting;
+      if (touch) setTimeout(() => c.to(c.visible ? 1 : 0), c.visible ? 700 : 0);
+    }), { threshold: 0.4 });
+    chans.forEach((c) => io.observe(c.el));
+
+    // idle churn: scrambled glyphs keep shifting, the hex row ticks over
+    if (reduceMotion) return;
+    let acc = 0;
+    gsap.ticker.add((time, dt) => {
+      acc += dt;
+      if (acc < 75) return; // ~13 updates a second is plenty for a glitchy churn
+      acc = 0;
+      for (const c of chans) {
+        if (!c.visible || c.d >= 1 || (c.tween && c.tween.isActive())) continue;
+        c.render();
+        if (Math.random() < 0.3) c.hex.textContent = hexRow();
+      }
+    });
+  }
+
+  /* ---------------------------------------------------------
+     BREACH PROTOCOL — the Cyberpunk hacking minigame.
+     Pick from the top row, then alternate column / row / column…
+     Every pick goes into the buffer; upload every target sequence
+     (as an unbroken run in the buffer) before the buffer fills.
+     --------------------------------------------------------- */
+  function initBreach() {
+    const root = $("#bp");
+    if (!root) return;
+    const CODES = ["1C", "55", "BD", "E9", "7A", "FF"];
+    const MODES = {
+      normal: { size: 4, buffer: 6, seqs: [5, 3] }, // like the collab's Normal stage
+      hard:   { size: 5, buffer: 7, seqs: [5, 4] },
+    };
+    const LOOT = [
+      ["LEGENDARY", "Sandevistan Mk.5"],
+      ["EPIC", "Lucy's Monowire"],
+      ["ICONIC", "One-way ticket to the Moon"],
+      ["RARE", "Kiroshi Optics v2.0"],
+      ["EPIC", "Militech-grade ICE breaker"],
+      ["ICONIC", "David's yellow jacket"],
+    ];
+
+    const grid = $(".bp-grid", root);
+    const turn = $(".bp-turn", root);
+    const seqList = $(".bp-seq-list", root);
+    const slots = $(".bp-slots", root);
+    const count = $(".bp-count", root);
+    const result = $(".bp-result", root);
+    const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+
+    let mode = "normal", cfg = MODES.normal;
+    let matrix = [], seqs = [];
+    let picks = [], used = new Set(), over = false, hover = null;
+
+    // a legal path through the matrix: row 0 first, then alternate column / row
+    function makePath(size, len) {
+      for (let attempt = 0; attempt < 500; attempt++) {
+        let r = 0, c = (Math.random() * size) | 0;
+        const path = [[r, c]], seen = new Set([r * size + c]);
+        for (let i = 1; i < len; i++) {
+          const inColumn = i % 2 === 1;
+          const options = [];
+          for (let k = 0; k < size; k++) {
+            const rr = inColumn ? k : r, cc = inColumn ? c : k;
+            if (!seen.has(rr * size + cc)) options.push([rr, cc]);
+          }
+          if (!options.length) break;
+          [r, c] = pick(options);
+          path.push([r, c]); seen.add(r * size + c);
+        }
+        if (path.length === len) return path;
+      }
+      return null;
+    }
+
+    // build a puzzle that is always solvable by the generated path
+    function generate() {
+      const { size, buffer, seqs: lens } = cfg;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const path = makePath(size, buffer);
+        const solution = Array.from({ length: buffer }, () => pick(CODES));
+        const a = solution.slice(0, lens[0]);                 // overlapping sequences,
+        const b = solution.slice(buffer - lens[1]);           // like BD 1C FF 7A BD + 7A BD 55
+        const ja = a.join(" "), jb = b.join(" ");
+        if (ja.includes(jb) || jb.includes(ja)) continue;     // one would make the other trivial
+        matrix = Array.from({ length: size }, () => Array.from({ length: size }, () => pick(CODES)));
+        path.forEach(([r, c], i) => { matrix[r][c] = solution[i]; });
+        seqs = Math.random() < 0.5 ? [a, b] : [b, a];
+        return;
+      }
+    }
+
+    const lineOf = () => {
+      if (!picks.length) return { axis: "row", index: 0 };
+      const [r, c] = picks[picks.length - 1];
+      return picks.length % 2 === 1 ? { axis: "col", index: c } : { axis: "row", index: r };
+    };
+    const inLine = (r, c, line = lineOf()) => (line.axis === "row" ? r === line.index : c === line.index);
+    const buffer = () => picks.map(([r, c]) => matrix[r][c]);
+
+    // how far each sequence has got: done, how many codes the buffer's tail already matches, or dead
+    function seqStatus(buf) {
+      const s = buf.join(" ");
+      return seqs.map((seq) => {
+        if (s.includes(seq.join(" "))) return { done: true, hit: seq.length };
+        let hit = 0;
+        for (let k = Math.min(seq.length - 1, buf.length); k > 0; k--) {
+          if (buf.slice(-k).join(" ") === seq.slice(0, k).join(" ")) { hit = k; break; }
+        }
+        const left = cfg.buffer - buf.length;
+        return { done: false, hit, dead: left < seq.length - hit };
+      });
+    }
+
+    function render() { renderGrid(); renderSide(); }
+
+    function renderGrid() {
+      const line = lineOf();
+      const size = cfg.size;
+      grid.style.gridTemplateColumns = `repeat(${size}, auto)`;
+      grid.replaceChildren(...matrix.flatMap((row, r) => row.map((code, c) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "bp-cell";
+        b.dataset.r = r; b.dataset.c = c;
+        const isUsed = used.has(r * size + c);
+        const active = !over && inLine(r, c, line);
+        if (isUsed) { b.classList.add("is-used"); b.textContent = "[ ]"; }
+        else b.textContent = code;
+        if (active) b.classList.add("is-line");
+        b.disabled = !active || isUsed;
+        b.setAttribute("aria-label", isUsed ? "used" : `${code}, row ${r + 1}, column ${c + 1}`);
+        return b;
+      })));
+    }
+
+    // sequences, buffer and turn hint (cheap: safe to redo on every hover)
+    function renderSide() {
+      const line = lineOf();
+      const buf = buffer();
+      const next = hover ? [...buf, matrix[hover[0]][hover[1]]] : buf;
+      const status = seqStatus(buf);
+      const preview = hover ? seqStatus(next) : null;
+      seqList.replaceChildren(...seqs.map((seq, i) => {
+        const st = status[i];
+        const li = document.createElement("li");
+        li.className = "bp-seq" + (st.done ? " is-done" : st.dead ? " is-dead" : "");
+        seq.forEach((code, k) => {
+          const span = document.createElement("span");
+          span.className = "bp-seq__code";
+          if (!st.done && k < st.hit) span.classList.add("is-hit");
+          else if (!st.done && preview && k < preview[i].hit && !preview[i].done) span.classList.add("is-hint");
+          span.textContent = code;
+          li.appendChild(span);
+        });
+        const state = document.createElement("span");
+        state.className = "bp-seq__state";
+        state.textContent = st.done ? "UPLOADED" : st.dead ? "FAILED" : `${st.hit}/${seq.length}`;
+        li.appendChild(state);
+        return li;
+      }));
+
+      slots.replaceChildren(...Array.from({ length: cfg.buffer }, (_, i) => {
+        const s = document.createElement("span");
+        s.className = "bp-slot";
+        if (i < buf.length) { s.classList.add("is-filled"); s.textContent = buf[i]; }
+        else if (i === buf.length && hover) { s.classList.add("is-ghost"); s.textContent = matrix[hover[0]][hover[1]]; }
+        return s;
+      }));
+      count.textContent = `${buf.length}/${cfg.buffer}`;
+      turn.textContent = over ? "" : line.axis === "row"
+        ? (picks.length ? `> PICK FROM ROW ${line.index + 1}` : "> PICK FROM THE TOP ROW")
+        : `> PICK FROM COLUMN ${line.index + 1}`;
+    }
+
+    function crosshair(r, c) {
+      $$(".bp-cell", grid).forEach((el) => {
+        const rr = +el.dataset.r, cc = +el.dataset.c;
+        // the next line you'd be locked to after this pick
+        const nextIsCol = picks.length % 2 === 0;
+        el.classList.toggle("is-cross", r !== null && (nextIsCol ? cc === c : rr === r) && !(rr === r && cc === c));
+      });
+    }
+
+    function choose(r, c) {
+      if (over || used.has(r * cfg.size + c) || !inLine(r, c)) return;
+      picks.push([r, c]);
+      used.add(r * cfg.size + c);
+      hover = null;
+      render();
+      const cell = grid.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+      if (cell) cell.classList.add("is-pick");
+      check();
+    }
+
+    function check() {
+      const status = seqStatus(buffer());
+      if (status.every((s) => s.done)) return finish(true);
+      const line = lineOf();
+      const movesLeft = matrix.some((row, r) => row.some((_, c) => inLine(r, c, line) && !used.has(r * cfg.size + c)));
+      if (picks.length >= cfg.buffer || status.some((s) => s.dead) || !movesLeft) finish(false);
+    }
+
+    function finish(win) {
+      over = true;
+      render();
+      $(".bp-result__kicker", result).textContent = win ? "// BREACH SUCCESSFUL" : "// BREACH FAILED";
+      $(".bp-result__title", result).textContent = win ? "ICE CRACKED, CHOOM" : "FLATLINED";
+      $(".bp-result__text", result).textContent = win
+        ? "Every daemon uploaded. Preem work, netrunner."
+        : "The ICE fried your buffer. Shake it off and jack back in.";
+      const items = $(".bp-result__items", result);
+      items.replaceChildren(...(win ? [...LOOT].sort(() => Math.random() - 0.5).slice(0, 3) : []).map(([tier, name]) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<b>[${tier}]</b>`;
+        li.append(name);
+        return li;
+      }));
+      items.hidden = !win;
+      $(".bp-retry", result).hidden = win;
+      result.classList.toggle("is-fail", !win);
+      setTimeout(() => {
+        result.hidden = false;
+        const panel = $(".bp-result__panel", result);
+        if (!reduceMotion) {
+          panel.classList.remove("glitch-in"); void panel.offsetWidth; panel.classList.add("glitch-in");
+          setTimeout(() => panel.classList.remove("glitch-in"), 800);
+        }
+        (win ? $(".bp-new", result) : $(".bp-retry", result)).focus({ preventScroll: true });
+      }, win ? 450 : 650);
+    }
+
+    function reset(newPuzzle) {
+      if (newPuzzle) generate();
+      picks = []; used = new Set(); over = false; hover = null;
+      result.hidden = true;
+      render();
+    }
+
+    // events
+    grid.addEventListener("click", (e) => {
+      const b = e.target.closest(".bp-cell");
+      if (b && !b.disabled) choose(+b.dataset.r, +b.dataset.c);
+    });
+    // hover / focus previews the pick: ghost code in the buffer, sequence hints, next-line crosshair
+    const onHover = (e) => {
+      const b = e.target.closest(".bp-cell");
+      const next = b && !b.disabled ? [+b.dataset.r, +b.dataset.c] : null;
+      if (String(next) === String(hover)) return;
+      hover = next;
+      renderSide();
+      crosshair(hover ? hover[0] : null, hover ? hover[1] : null);
+    };
+    grid.addEventListener("mouseover", onHover);
+    grid.addEventListener("focusin", onHover);
+    grid.addEventListener("mouseleave", () => { hover = null; renderSide(); crosshair(null, null); });
+
+    root.addEventListener("click", (e) => {
+      if (e.target.closest(".bp-reset, .bp-retry")) reset(false);
+      else if (e.target.closest(".bp-new")) reset(true);
+      const diff = e.target.closest("[data-diff]");
+      if (diff && diff.dataset.diff !== mode) {
+        mode = diff.dataset.diff; cfg = MODES[mode];
+        $$("[data-diff]", root).forEach((b) => b.setAttribute("aria-pressed", String(b === diff)));
+        reset(true);
+      }
+    });
+
+    generate();
+    render();
   }
 
   /* ---------------------------------------------------------
