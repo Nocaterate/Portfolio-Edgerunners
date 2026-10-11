@@ -37,6 +37,11 @@
   const SONG_HIT = 30.24;
   const CROSSFADE = 0.6;                   // seconds the two sounds overlap
   const SONG_START = SONG_HIT - CROSSFADE; // start a little earlier in the track, under the clip
+  // Phones / tablets: iOS lets only ONE element make sound at a time and blocks sound that starts
+  // outside a tap. So there the song starts audibly in the tap itself (the clip plays silent),
+  // this many seconds before the lyric so it still lands as the red warning clip ends.
+  const TOUCH = matchMedia("(pointer: coarse)").matches;
+  const MOBILE_LEAD = 1.3;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let started = false;
   let revealed = false;
@@ -106,12 +111,22 @@
     // Unlock audio inside the click gesture so it can play after the video
     setupAnalyser();
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
-    // Phones (iOS especially) only let sound start *inside* a tap, so the song starts right now,
-    // muted, and keeps running. startMusic() later just rewinds it to the lyric and unmutes it.
     if (!bgm.src) bgm.src = SONG_URL; // in-memory copy still downloading: stream the file instead
-    bgm.volume = 0;
-    bgm.muted = true;
-    bgm.play().catch(() => { musicOk = false; });
+    if (TOUCH) {
+      // one sound, started by the tap itself: the song, audible right away; the clip stays silent
+      musicStarted = true;
+      video.muted = true;
+      try { bgm.currentTime = SONG_HIT - MOBILE_LEAD; } catch (e) { /* not loaded yet: starts from 0 */ }
+      bgm.muted = false;
+      bgm.volume = MUSIC_VOLUME;
+      bgm.play().catch(setNoTrack); // blocked anyway: the SOUND button still works
+    } else {
+      // desktop: start the song silently inside the click so it may play later, then crossfade
+      // it in under the clip's own sound (startMusic rewinds to the lyric and unmutes it)
+      bgm.volume = 0;
+      bgm.muted = true;
+      bgm.play().catch(() => { musicOk = false; });
+    }
 
     trans.classList.add("is-active");
     playTransition();
