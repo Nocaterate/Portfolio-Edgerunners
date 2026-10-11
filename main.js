@@ -66,8 +66,8 @@
     // Range requests (without them the browser can't seek, so the loop silently fails).
     songReady = fetch(SONG_URL)
       .then((r) => { if (!r.ok) throw new Error(r.status); return r.blob(); })
-      .then((blob) => { bgm.src = URL.createObjectURL(blob); })
-      .catch(() => { bgm.src = SONG_URL; }) // e.g. opened straight from disk (file://)
+      .then((blob) => { if (!bgm.src) bgm.src = URL.createObjectURL(blob); })
+      .catch(() => { if (!bgm.src) bgm.src = SONG_URL; }) // e.g. opened straight from disk (file://)
       .then(() => whenMedia(bgm));
     const jobs = [
       new Promise((r) => (bgImg.complete ? r() : (bgImg.onload = bgImg.onerror = r))).then(() => bgImg.decode().catch(() => {})),
@@ -106,12 +106,12 @@
     // Unlock audio inside the click gesture so it can play after the video
     setupAnalyser();
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    // Phones (iOS especially) only let sound start *inside* a tap, so the song starts right now,
+    // muted, and keeps running. startMusic() later just rewinds it to the lyric and unmutes it.
+    if (!bgm.src) bgm.src = SONG_URL; // in-memory copy still downloading: stream the file instead
     bgm.volume = 0;
-    if (bgm.currentSrc) {
-      bgm.play().then(() => {
-        if (!musicStarted) { bgm.pause(); bgm.currentTime = SONG_START; }
-      }).catch(() => { musicOk = false; });
-    } // else: still downloading; the click already allows playback, startMusic waits for it
+    bgm.muted = true;
+    bgm.play().catch(() => { musicOk = false; });
 
     trans.classList.add("is-active");
     playTransition();
@@ -283,6 +283,9 @@
   function setupAnalyser() {
     // Web Audio can't read local file:// media, so only hook it up over http(s)
     if (!location.protocol.startsWith("http")) return;
+    // Phones: routing the song through Web Audio gets it muted by the iPhone silent switch (and a
+    // suspended audio context silences it entirely), so touch devices skip the beat-reactive glow
+    if (matchMedia("(pointer: coarse)").matches) return;
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const src = audioCtx.createMediaElementSource(bgm);
@@ -301,12 +304,13 @@
   // fade: seconds to reach full volume; partner: a media element to fade out at the same time
   function startMusic(fade = 0.4, partner = null) {
     if (musicStarted) return;
-    if (!bgm.currentSrc) { songReady.then(() => startMusic(fade, partner)); return; } // still downloading
+    if (!bgm.src) { songReady.then(() => startMusic(fade, partner)); return; } // still downloading
     musicStarted = true;
     if (!musicOk) return setNoTrack();
     if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
     if (Math.abs(bgm.currentTime - SONG_START) > 0.05) bgm.currentTime = SONG_START;
     bgm.volume = 0;
+    bgm.muted = false; // it has been playing silently since the tap
     // equal-power crossfade keeps the combined loudness even (no dip in the middle)
     const x = { p: 0 };
     const startVol = partner ? partner.volume : 0;
@@ -358,8 +362,10 @@
 
   soundBtn.addEventListener("click", () => {
     const label = $(".hud__sound-label");
-    if (bgm.paused) {
+    if (bgm.paused || bgm.muted) {
       if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+      if (!bgm.src) bgm.src = SONG_URL;
+      bgm.muted = false;
       bgm.play().then(() => {
         gsap.to(bgm, { volume: MUSIC_VOLUME, duration: 0.6 });
         soundBtn.classList.remove("is-muted");
@@ -737,13 +743,21 @@
     ScrollTrigger.create({ start: () => altToScroll(DIVE_START_ALT), onEnter: warmVideo });
     if (revealed) setTimeout(warmVideo, 4000); else addEventListener("nc:revealed", () => setTimeout(warmVideo, 4000), { once: true });
 
-    // Only decode the section video while it can be seen
-    ScrollTrigger.create({
-      trigger: "#about", start: "top 60%", end: () => ScrollTrigger.maxScroll(window) + 1,
+    // Only decode the section video while it can be seen. The end is a point that can never be
+    // reached (the content's bottom edge passing the top of the screen), so the video keeps playing
+    // all the way down, however tall the page grows. (A measured page end came out as 0 while
+    // scrolling was still locked, which paused the video at the bottom.)
+    const videoZone = ScrollTrigger.create({
+      trigger: "#about", start: "top 60%",
+      endTrigger: ".content", end: "bottom top",
       onToggle: (self) => {
         if (vid.classList.contains("no-video")) return;
         if (self.isActive) vidEl.play().catch(() => {}); else vidEl.pause();
       },
+    });
+    // browsers pause videos in background tabs; pick it back up when the visitor returns
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && videoZone.isActive && !vid.classList.contains("no-video")) vidEl.play().catch(() => {});
     });
 
     // --- MARQUEE: two bands sliding opposite ways ---
